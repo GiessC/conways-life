@@ -4,12 +4,11 @@ import {
   useContext,
   useState,
   type PropsWithChildren,
-  type SetStateAction,
 } from "react";
 
 export function ConwaysLife() {
   return (
-    <ConwaysLifeProvider width={40} height={60}>
+    <ConwaysLifeProvider width={5} height={5}>
       <div>
         <Grid />
         <Actions />
@@ -66,99 +65,182 @@ function ConwaysLifeProvider({
 
   function nextStep(): void {
     setCellGrid((prev: CellState[][]) => {
-      const relevantCellsOnlyGrid: CellState[][] = cellGrid.filter(
-        (cellRow) => {
-          return cellRow.filter((cell) => {
-            return cell.isAlive || atLeastOneNeighborIsAlive(cell.position);
-          });
-        },
+      const newCellGrid: CellState[][] = prev.map((arr) => arr.slice());
+      const relevantCellsOnlyGrid = relevantCellsOnly(prev);
+      console.log(
+        "relevant\n",
+        visualizedRelevantCells(relevantCellsOnly(cellGrid)),
       );
-      const newCellGrid: CellState[][] = [...prev];
-      for (const cellRow of relevantCellsOnlyGrid) {
-        for (const cell of cellRow) {
-          const state = nextStateBasedOnNeighbors(cell.position);
-          console.debug(cell.position, state);
-          cell.isAlive = state.isAlive;
-        }
+      for (const relevantCell of relevantCellsOnlyGrid) {
+        console.debug(
+          "next state",
+          JSON.stringify(
+            nextStateBasedOnNeighbors(relevantCell.position, prev),
+          ),
+        );
+        newCellGrid[relevantCell.position.y][relevantCell.position.x] =
+          nextStateBasedOnNeighbors(relevantCell.position, prev);
       }
       return newCellGrid;
     });
+    // console.log(visualized(cellGrid));
   }
 
-  function atLeastOneNeighborIsAlive(position: Position) {
-    const neighbors = getNeighbors(position);
-    for (const neighbor of neighbors) {
-      if (neighbor.isAlive) {
-        return true;
+  function relevantCellsOnly(grid: CellState[][]): CellState[] {
+    const relevantCellsOnlyGrid: CellState[] = [];
+    const clonedGrid = grid.map((row) => row.slice());
+    for (const row of clonedGrid) {
+      for (const cell of row) {
+        if (!cell.isAlive && !atLeastOneNeighborIsAlive(cell.position, grid)) {
+          continue;
+        }
+        relevantCellsOnlyGrid.push(cell);
       }
     }
-    return false;
+    return relevantCellsOnlyGrid;
   }
 
-  function nextStateBasedOnNeighbors(position: Position) {
+  function visualizedRelevantCells(relevantCellsOnlyGrid: CellState[]) {
+    const fakeGrid: (CellState | undefined)[][] = new Array(cellGrid.length);
+    for (let row = 0; row < cellGrid.length; row++) {
+      fakeGrid[row] = new Array(cellGrid[row].length);
+      for (let col = 0; col < cellGrid[row].length; col++) {
+        const relevantCellMaybe = relevantCellsOnlyGrid.find(
+          (cell) => cell.position.x === col && cell.position.y === row,
+        );
+        fakeGrid[row][col] = relevantCellMaybe;
+      }
+    }
+    return visualizedGrid(fakeGrid);
+  }
+
+  function visualizedGrid(grid: (CellState | undefined)[][]): string {
+    return grid
+      .map((cellRow) => {
+        return cellRow
+          .map((cell) => {
+            if (!cell) {
+              return -1;
+            }
+            return cell.isAlive ? 1 : 0;
+          })
+          .join(" ");
+      })
+      .join("\n");
+  }
+
+  function atLeastOneNeighborIsAlive(position: Position, grid: CellState[][]) {
+    const neighbors = getLiveNeighbors(position, grid);
+    console.log(`live neighbors\n${visualizedNeighbors(position, neighbors)}`);
+    return neighbors.length > 0;
+  }
+
+  function visualizedNeighbors(position: Position, neighbors: CellState[]) {
+    const matrix = new Array(3);
+    for (let row = 0; row < 3; row++) {
+      matrix[row] = new Array(3).fill(-1);
+    }
+    for (const neighbor of neighbors) {
+      matrix[neighbor.position.y - position.y + 1][
+        neighbor.position.x - position.x + 1
+      ] = neighbor.isAlive ? 1 : 0;
+    }
+    return visualizedGrid(matrix);
+  }
+
+  function nextStateBasedOnNeighbors(position: Position, grid: CellState[][]) {
     const cell = cellAt(position);
-    const neighbors = getNeighbors(position);
-    if (!cell.isAlive && threeAreAlive(neighbors)) {
-      return { isAlive: true, reason: "reproduction" };
+    const liveNeighbors = getLiveNeighbors(position, grid);
+    console.log(
+      "next state. neighbors:",
+      visualizedNeighbors(position, liveNeighbors),
+    );
+    if (!cell.isAlive && liveNeighbors.length === 3) {
+      return {
+        position: cell.position,
+        isAlive: true,
+        reason: "reproduction",
+        liveNeighbors,
+      };
     }
-    if (moreThanThreeAreAlive(neighbors)) {
-      return { isAlive: false, reason: "overpopulation" };
+    if (cell.isAlive && liveNeighbors.length > 3) {
+      return {
+        position: cell.position,
+        isAlive: false,
+        reason: "overpopulation",
+        liveNeighbors,
+      };
     }
-    if (lessThanTwoAreAlive(neighbors)) {
-      return { isAlive: false, reason: "underpopulation" };
+    if (cell.isAlive && liveNeighbors.length < 2) {
+      return {
+        position: cell.position,
+        isAlive: false,
+        reason: "underpopulation",
+        liveNeighbors,
+      };
     }
-    return { isAlive: true, reason: "sustainable" };
+    if (cell.isAlive) {
+      return {
+        position: cell.position,
+        isAlive: true,
+        reason: "sustainable",
+        liveNeighbors,
+      };
+    }
+    return {
+      position: cell.position,
+      isAlive: cell.isAlive,
+      liveNeighbors,
+    };
   }
 
-  function aliveCount(neighbors: CellState[]): number {
-    let count = 0;
-    for (const neighbor of neighbors) {
-      if (!neighbor?.isAlive) {
-        continue;
-      }
-      count += 1;
-    }
-    return count;
+  function getLiveNeighbors(
+    position: Position,
+    grid: CellState[][],
+  ): CellState[] {
+    return getNeighbors(position, grid).filter((neighbor) => neighbor.isAlive);
   }
 
-  function threeAreAlive(neighbors: CellState[]): boolean {
-    return aliveCount(neighbors) === 3;
-  }
-  function moreThanThreeAreAlive(neighbors: CellState[]): boolean {
-    return aliveCount(neighbors) > 3;
-  }
-  function lessThanTwoAreAlive(neighbors: CellState[]): boolean {
-    return aliveCount(neighbors) < 2;
-  }
-
-  function getNeighbors(position: Position): CellState[] {
-    const neighborsMatrix: number[][] = [
-      [-1, 1],
-      [0, 1],
-      [1, 1],
-      [-1, 0],
-      [1, 1],
+  function getNeighbors(position: Position, grid: CellState[][]): CellState[] {
+    const MATRIX: number[][] = [
       [-1, -1],
       [0, -1],
       [1, -1],
+      [-1, 0],
+      [1, 0],
+      [-1, 1],
+      [0, 1],
+      [1, 1],
     ];
 
-    return neighborsMatrix
-      .map(([neighborColDiff, neighborRowDiff]) => {
-        const newY = position.y + neighborRowDiff;
-        const newX = position.x + neighborColDiff;
-        if (!isInBounds(newY, "y") || !isInBounds(newX, "x")) {
-          return undefined;
-        }
-        if (!cellGrid[newY]) {
-          console.warn({ newX, newY });
-          return;
-        }
-        return cellGrid[newY][newX];
-      })
-      .filter((matrixCell) => {
-        return !!matrixCell;
-      });
+    const neighborsMatrix: CellState[] = [];
+    for (const [colDiff, rowDiff] of MATRIX) {
+      const newY = position.y + rowDiff;
+      const newX = position.x + colDiff;
+      if (newY < 0 || newY > grid.length) {
+        continue;
+      }
+      if (newX < 0 || newX > grid[0].length) {
+        continue;
+      }
+      neighborsMatrix.push(grid[position.y + rowDiff][position.x + colDiff]);
+    }
+    return neighborsMatrix;
+
+    // return MATRIX.map(([neighborColDiff, neighborRowDiff]) => {
+    //   const newY = position.y + neighborRowDiff;
+    //   const newX = position.x + neighborColDiff;
+    //   if (!isInBounds(newY, "y") || !isInBounds(newX, "x")) {
+    //     return undefined;
+    //   }
+    //   if (!grid[newY]) {
+    //     console.warn("skip", { newX, newY });
+    //     return;
+    //   }
+    //   return grid[newY][newX];
+    // }).filter((matrixCell) => {
+    //   return !!matrixCell;
+    // });
   }
 
   function isInBounds(newXOrY: number, axis: "x" | "y"): boolean {

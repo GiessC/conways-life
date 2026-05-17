@@ -1,30 +1,19 @@
-import { useMemo } from "react";
 import { CELL_SIZE_PX } from "../const";
 import { useLifeContext } from "../hooks/useLifeContext";
 import { Cell } from "./Cell";
+import { Grid } from "react-window";
 
-export function Grid() {
-  const { dimensions, cellGrid } = useLifeContext();
-
-  const divStyles = useMemo(
-    () => ({
-      width: dimensions.width * CELL_SIZE_PX,
-      height: dimensions.height * CELL_SIZE_PX,
-    }),
-    [dimensions],
-  );
+export function VirtualizedGrid() {
+  const { dimensions } = useLifeContext();
 
   return (
-    <div style={divStyles}>
-      {cellGrid.map((cellRow) => {
-        return (
-          <div className="flex">
-            {cellRow.map((props) => (
-              <Cell {...props} />
-            ))}
-          </div>
-        );
-      })}
-    </div>
+    <Grid
+      cellComponent={Cell}
+      cellProps={{}}
+      columnCount={dimensions.width}
+      columnWidth={CELL_SIZE_PX}
+      rowCount={dimensions.height}
+      rowHeight={CELL_SIZE_PX}
+    />
   );
 }

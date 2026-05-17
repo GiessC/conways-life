@@ -1,8 +1,14 @@
+import type { CellComponentProps } from "react-window";
 import { CELL_SIZE_PX } from "../const";
 import { useCell } from "../hooks/useCell";
 import type { Position } from "../types";
 
-export function Cell({ position }: { position: Position }) {
+export function Cell({
+  style,
+  columnIndex: x,
+  rowIndex: y,
+}: CellComponentProps) {
+  const position: Position = { x, y };
   const { isAlive, toggleAlive } = useCell(position);
 
   const colors: Record<string, string> = {
@@ -21,6 +27,7 @@ export function Cell({ position }: { position: Position }) {
         borderRight: 0,
         borderColor: "white",
         backgroundColor: colors[String(isAlive)],
+        ...style,
       }}
     />
   );

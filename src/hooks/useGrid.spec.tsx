@@ -1,5 +1,5 @@
 import type { CellState, Position } from "../types";
-import { useGrid, type IGrid } from "./useGrid";
+import { useGrid, useGridV2, type IGrid } from "./useGrid";
 import { expect, describe, test, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { act } from "react";
@@ -12,7 +12,7 @@ describe("useGrid", () => {
   let grid: IGrid;
 
   function initGrid(): IGrid {
-    const { result } = renderHook(() => useGrid(WIDTH, HEIGHT));
+    const { result } = renderHook(() => useGridV2(WIDTH, HEIGHT));
     return result.current;
   }
 

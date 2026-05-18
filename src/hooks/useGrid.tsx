@@ -3,7 +3,6 @@ import type { CellState, Position } from "../types";
 import { OutOfBoundsError } from "../errors/outOfBounds.error";
 
 export interface IGrid {
-  // batchUpdate(updates: { items: CellState[] }): void;
   conditionallyUpdateAll(updateFunction: (cell: CellState) => CellState): void;
   get(position: Position): CellState;
   inBounds(position: Position): boolean;
@@ -12,17 +11,120 @@ export interface IGrid {
   reset(): void;
 }
 
-// map: Map<number, Map<number, CellState>>; (subset of our total cells)
-//
-// get(...) spans all of our cells
-// as in, if i call get({ x: 180, y: 53216 }), a dead cell, in dead space with no live neighbors, it should return a valid CellState
+type CellMap = Map<number, Map<number, CellState>>;
 
-// export function useGridV2(width: number, height: number) {}
+function useCellMap(width: number, height: number) {
+  const [map, setMap] = useState<CellMap>(new Map());
+  const mapRef = useRef(map);
+  mapRef.current = map;
+
+  function get(position: Position): CellState {
+    return (
+      mapRef.current.get(position.x)?.get(position.y) ?? {
+        position,
+        isAlive: false,
+      }
+    );
+  }
+
+  function applyCell(map: CellMap, state: CellState): void {
+    const { x, y } = state.position;
+    if (state.isAlive) {
+      if (!map.has(x)) map.set(x, new Map());
+      map.get(x)!.set(y, state);
+    } else {
+      map.get(x)?.delete(y);
+      if (map.get(x)?.size === 0) map.delete(x);
+    }
+  }
+
+  function set(state: CellState): void {
+    setMap((map) => {
+      applyCell(map, state);
+      return map;
+    });
+  }
+
+  function clear(): void {
+    setMap(new Map());
+  }
+
+  function updateAll(
+    updateFunction: (cellState: CellState) => CellState,
+  ): void {
+    setMap(() => {
+      const newMap: CellMap = new Map();
+      for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+          const position: Position = { x, y };
+          const cell = mapRef.current.get(x)?.get(y) ?? {
+            position,
+            isAlive: false,
+          };
+          const updatedCell = updateFunction(cell);
+          applyCell(newMap, updatedCell);
+        }
+      }
+      return newMap;
+    });
+  }
+
+  return { get, set, clear, updateAll };
+}
+
+export function useGridV2(width: number, height: number): IGrid {
+  const cellMap = useCellMap(width, height);
+
+  function inBounds(position: Position): boolean {
+    return (
+      position.x >= 0 &&
+      position.x < width &&
+      position.y >= 0 &&
+      position.y < height
+    );
+  }
+
+  function get(position: Position): CellState {
+    if (!inBounds(position)) {
+      throw new OutOfBoundsError(position);
+    }
+    const cell = cellMap.get(position);
+    if (!cell) {
+      console.warn(`No cell found at (${position.x}, ${position.y})`);
+    }
+    return (
+      cell ?? {
+        position,
+        isAlive: false,
+      }
+    );
+  }
+
+  return {
+    get,
+    inBounds,
+    setAlive: function (position: Position, isAlive: boolean): void {
+      cellMap.set({ position, isAlive });
+    },
+    toggleAlive: function (position: Position): void {
+      cellMap.set({
+        position,
+        isAlive: !cellMap.get(position).isAlive,
+      });
+    },
+    reset: function (): void {
+      cellMap.clear();
+    },
+    conditionallyUpdateAll: function (
+      updateFunction: (cell: CellState) => CellState,
+    ): void {
+      cellMap.updateAll(updateFunction);
+    },
+  };
+}
 
 export function useGrid(width: number, height: number): IGrid {
   const [cellGrid, setCellGrid] = useState<CellState[][]>(initializeGrid);
-  // Always points to the latest cellGrid so stale closures (e.g. setInterval callbacks)
-  // still read current state instead of the snapshot from when they were created.
   const cellGridRef = useRef(cellGrid);
   cellGridRef.current = cellGrid;
 

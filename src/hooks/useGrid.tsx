@@ -94,16 +94,9 @@ export function useGrid(width: number, height: number): IGrid {
     return grid.map((gridRow) => gridRow.slice());
   }
 
-  function everybodyIsDead(grid: CellState[][]): boolean {
-    return !grid.flatMap((gridRow) => gridRow).some((cell) => cell.isAlive);
-  }
-
   const conditionallyUpdateAll = useCallback(
     (updateFunction: (cell: CellState) => CellState): void => {
       setCellGrid((cellGrid) => {
-        if (everybodyIsDead(cellGrid)) {
-          return cellGrid;
-        }
         const newGrid = cloneGrid(cellGrid);
         for (const cellRow of newGrid) {
           for (const cell of cellRow) {

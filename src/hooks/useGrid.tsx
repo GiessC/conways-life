@@ -40,8 +40,9 @@ function useCellMap(width: number, height: number) {
 
   function set(state: CellState): void {
     setMap((map) => {
-      applyCell(map, state);
-      return map;
+      const newMap = new Map(map);
+      applyCell(newMap, state);
+      return newMap;
     });
   }
 
@@ -122,7 +123,9 @@ export function useGridV2(width: number, height: number): IGrid {
     },
   };
 }
-
+/**
+ * @deprecated This method should not be used. It is inefficient and will only work with small grids.
+ */
 export function useGrid(width: number, height: number): IGrid {
   const [cellGrid, setCellGrid] = useState<CellState[][]>(initializeGrid);
   const cellGridRef = useRef(cellGrid);

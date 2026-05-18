@@ -5,19 +5,19 @@ import { renderHook } from "@testing-library/react";
 import { act } from "react";
 import { OutOfBoundsError } from "../errors/outOfBounds.error";
 
-describe("useGrid", () => {
-  const WIDTH: number = 50;
-  const HEIGHT: number = 50;
+const WIDTH: number = 50;
+const HEIGHT: number = 50;
 
+const hooks: [string, () => IGrid][] = [
+  ["useGrid", () => renderHook(() => useGrid(WIDTH, HEIGHT)).result.current],
+  ["useGridV2", () => renderHook(() => useGridV2(WIDTH, HEIGHT)).result.current],
+];
+
+describe.each(hooks)("%s", (_, initHook) => {
   let grid: IGrid;
 
-  function initGrid(): IGrid {
-    const { result } = renderHook(() => useGridV2(WIDTH, HEIGHT));
-    return result.current;
-  }
-
   beforeEach(() => {
-    grid = initGrid();
+    grid = initHook();
   });
 
   describe("get cell", () => {
@@ -59,10 +59,10 @@ describe("useGrid", () => {
       const position: Position = { x: -1, y: 0 };
 
       // When
-      const act = () => grid.get(position);
+      const action = () => grid.get(position);
 
       // Then
-      expect(act).toThrow(new OutOfBoundsError(position));
+      expect(action).toThrow(new OutOfBoundsError(position));
     });
   });
 

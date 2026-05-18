@@ -11,75 +11,14 @@ export function ConwaysLifeProvider({
   width: number;
   height: number;
 }>) {
-  const {
-    cellGrid,
-    setCellGrid,
-    cellAt,
-    setCellAlive,
-    toggleCellAlive,
-    reset,
-  } = useGrid(width, height);
+  const grid = useGrid(width, height);
+  const { inBounds, get, conditionallyUpdateAll, reset } = grid;
   const [started, setStarted] = useState<boolean>(false);
   const [speed, setSpeed] = useState<Speed>(Speed.normal());
   const timer = useRef<number | undefined>(undefined);
 
-  const visualizedRelevantCells = useCallback(
-    (relevantCellsOnlyGrid: CellState[]) => {
-      const fakeGrid: (CellState | undefined)[][] = new Array(cellGrid.length);
-      for (let row = 0; row < cellGrid.length; row++) {
-        fakeGrid[row] = new Array(cellGrid[row].length);
-        for (let col = 0; col < cellGrid[row].length; col++) {
-          const relevantCellMaybe = relevantCellsOnlyGrid.find(
-            (cell) => cell.position.x === col && cell.position.y === row,
-          );
-          fakeGrid[row][col] = relevantCellMaybe;
-        }
-      }
-      return visualizedGrid(fakeGrid);
-    },
-    [cellGrid],
-  );
-
-  function visualizedGrid(grid: (CellState | undefined)[][]): string {
-    return grid
-      .map((cellRow) => {
-        return cellRow
-          .map((cell) => {
-            if (!cell) {
-              return -1;
-            }
-            return cell.isAlive ? 1 : 0;
-          })
-          .join(" ");
-      })
-      .join("\n");
-  }
-
-  const visualizedNeighbors = useCallback(
-    (position: Position, neighbors: CellState[]) => {
-      const matrix = new Array(3);
-      for (let row = 0; row < 3; row++) {
-        matrix[row] = new Array(3).fill(-1);
-      }
-      for (const neighbor of neighbors) {
-        matrix[neighbor.position.y - position.y + 1][
-          neighbor.position.x - position.x + 1
-        ] = neighbor.isAlive ? 1 : 0;
-      }
-      return visualizedGrid(matrix);
-    },
-    [],
-  );
-
-  const isInBounds = useCallback(
-    (newXOrY: number, axis: "x" | "y"): boolean => {
-      return newXOrY >= 0 && newXOrY < (axis === "x" ? width : height);
-    },
-    [height, width],
-  );
-
   const getNeighbors = useCallback(
-    (position: Position, grid: CellState[][]): CellState[] => {
+    (position: Position): CellState[] => {
       const MATRIX: number[][] = [
         [-1, -1],
         [0, -1],
@@ -95,22 +34,25 @@ export function ConwaysLifeProvider({
       for (const [colDiff, rowDiff] of MATRIX) {
         const newY = position.y + rowDiff;
         const newX = position.x + colDiff;
-        if (!isInBounds(newY, "y")) {
+        if (!inBounds({ x: newX, y: newY })) {
           continue;
         }
-        if (!isInBounds(newX, "x")) {
-          continue;
+        const neighborCell = get({
+          x: position.x + colDiff,
+          y: position.y + rowDiff,
+        });
+        if (neighborCell) {
+          neighborsMatrix.push(neighborCell);
         }
-        neighborsMatrix.push(grid[position.y + rowDiff][position.x + colDiff]);
       }
       return neighborsMatrix;
     },
-    [isInBounds],
+    [get, inBounds],
   );
 
   const getLiveNeighbors = useCallback(
-    (position: Position, grid: CellState[][]): CellState[] => {
-      return getNeighbors(position, grid).filter(
+    (position: Position): CellState[] => {
+      return getNeighbors(position).filter(
         (neighbor) => neighbor?.isAlive ?? false,
       );
     },
@@ -120,19 +62,14 @@ export function ConwaysLifeProvider({
   const nextStateBasedOnNeighbors = useCallback(
     (
       position: Position,
-      grid: CellState[][],
     ): {
       position: Position;
       isAlive: boolean;
       reason?: string;
       liveNeighbors: CellState[];
     } => {
-      const cell = grid[position.y][position.x];
-      const liveNeighbors = getLiveNeighbors(position, grid);
-      console.debug(
-        "next state. neighbors:",
-        visualizedNeighbors(position, liveNeighbors),
-      );
+      const cell = get(position);
+      const liveNeighbors = getLiveNeighbors(position);
       if (!cell.isAlive && liveNeighbors.length === 3) {
         return {
           position: cell.position,
@@ -171,67 +108,25 @@ export function ConwaysLifeProvider({
         liveNeighbors,
       };
     },
-    [getLiveNeighbors, visualizedNeighbors],
-  );
-
-  const atLeastOneNeighborIsAlive = useCallback(
-    (position: Position, grid: CellState[][]) => {
-      const neighbors = getLiveNeighbors(position, grid);
-      console.debug(
-        `live neighbors\n${visualizedNeighbors(position, neighbors)}`,
-      );
-      return neighbors.length > 0;
-    },
-    [getLiveNeighbors, visualizedNeighbors],
-  );
-
-  const relevantCellsOnly = useCallback(
-    (grid: CellState[][]): CellState[] => {
-      const relevantCellsOnlyGrid: CellState[] = [];
-      const clonedGrid = grid.map((row) => row.slice());
-      for (const row of clonedGrid) {
-        for (const cell of row) {
-          if (
-            !cell.isAlive &&
-            !atLeastOneNeighborIsAlive(cell.position, grid)
-          ) {
-            continue;
-          }
-          relevantCellsOnlyGrid.push(cell);
-        }
-      }
-      return relevantCellsOnlyGrid;
-    },
-    [atLeastOneNeighborIsAlive],
+    [get, getLiveNeighbors],
   );
 
   const nextStep = useCallback((): void => {
-    setCellGrid((prev: CellState[][]) => {
-      const newCellGrid: CellState[][] = prev.map((arr) => arr.slice());
-      const relevantCellsOnlyGrid = relevantCellsOnly(prev);
-      console.debug(
-        "relevant\n",
-        visualizedRelevantCells(relevantCellsOnlyGrid),
-      );
-      for (const relevantCell of relevantCellsOnlyGrid) {
-        const nextState = nextStateBasedOnNeighbors(
-          relevantCell.position,
-          prev,
-        );
-        console.debug("next state", JSON.stringify(nextState));
-        newCellGrid[relevantCell.position.y][relevantCell.position.x] = {
-          ...newCellGrid[relevantCell.position.y][relevantCell.position.x],
-          isAlive: nextState.isAlive,
-        };
+    console.log("next step");
+    conditionallyUpdateAll((cell: CellState): CellState => {
+      console.log("update");
+      const nextState = nextStateBasedOnNeighbors(cell.position);
+      if (nextState.isAlive == cell.isAlive) {
+        return cell;
       }
-      return newCellGrid;
+      console.log(cell.position, {
+        current: cell.isAlive,
+        next: nextState.isAlive,
+      });
+      console.log("new cell", { ...cell, ...nextState });
+      return { ...cell, ...nextState };
     });
-  }, [
-    nextStateBasedOnNeighbors,
-    relevantCellsOnly,
-    setCellGrid,
-    visualizedRelevantCells,
-  ]);
+  }, [conditionallyUpdateAll, nextStateBasedOnNeighbors]);
 
   const start = useCallback(() => {
     setStarted(true);
@@ -253,8 +148,11 @@ export function ConwaysLifeProvider({
   return (
     <LifeContext
       value={{
+        ...grid,
+        toggleCellAlive: grid.toggleAlive,
+        cellAt: grid.get,
+        setCellAlive: grid.setAlive,
         dimensions: { width, height },
-        cellGrid,
         started,
         start,
         stop,
@@ -274,9 +172,6 @@ export function ConwaysLifeProvider({
         },
         nextStep,
         nextStateBasedOnNeighbors,
-        toggleCellAlive,
-        setCellAlive,
-        cellAt,
       }}
     >
       {children}

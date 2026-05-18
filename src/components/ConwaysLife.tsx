@@ -4,8 +4,8 @@ import { VirtualizedGrid } from "./Grid";
 
 export function ConwaysLife() {
   return (
-    <ConwaysLifeProvider width={1000} height={1000}>
-      <div className="max-w-full max-h-270 overflow-scroll">
+    <ConwaysLifeProvider width={250} height={250}>
+      <div className="max-w-full max-h-180 overflow-scroll">
         <VirtualizedGrid />
       </div>
       <Actions />

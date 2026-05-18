@@ -2,6 +2,7 @@ import type { CellComponentProps } from "react-window";
 import { CELL_SIZE_PX } from "../const";
 import { useCell } from "../hooks/useCell";
 import type { Position } from "../types";
+import { useMemo } from "react";
 
 export function Cell({
   style,
@@ -9,12 +10,22 @@ export function Cell({
   rowIndex: y,
 }: CellComponentProps) {
   const position: Position = { x, y };
-  const { isAlive, toggleAlive } = useCell(position);
+  const { isAlive, toggleAlive, getNeighbors } = useCell(position);
 
   const colors: Record<string, string> = {
     true: "green",
     false: "black",
   };
+
+  const isRelevantCell = useMemo(() => {
+    if (isAlive) {
+      return true;
+    }
+    if (getNeighbors().some((neighbor) => neighbor.isAlive)) {
+      return true;
+    }
+    return false;
+  }, [isAlive, getNeighbors]);
 
   return (
     <div
@@ -29,6 +40,10 @@ export function Cell({
         backgroundColor: colors[String(isAlive)],
         ...style,
       }}
-    />
+    >
+      {isRelevantCell && import.meta.env.VITE_DEBUG === "true"
+        ? `x: ${position.x}\ny: ${position.y}`
+        : ""}
+    </div>
   );
 }

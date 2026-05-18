@@ -3,7 +3,6 @@ import type { Speed, CellState, Position } from "../types";
 
 export const LifeContext = createContext<ILifeContext>({
   dimensions: { width: 0, height: 0 },
-  cellGrid: [],
   started: false,
   start: () => {},
   stop: () => {},
@@ -24,7 +23,6 @@ export const LifeContext = createContext<ILifeContext>({
 });
 
 export interface ILifeContext {
-  cellGrid: { position: Position; isAlive: boolean }[][];
   dimensions: { width: number; height: number };
   started: boolean;
   start: () => void;
